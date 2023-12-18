@@ -9,6 +9,7 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -62,12 +63,39 @@ class PreExApplicationTests {
         assertThat(AopUtils.isJdkDynamicProxy(studentRepository)).isTrue();
     }
 
+    /**
+     * Тест контроллера студентов {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
     @Test
+    @WithMockUser(username = "Test User")
     void controllerTest() throws Exception {
         // given
+        // Создаем пользователя, который будет отправлять запросы
+        String userDataString = "Test User";
+        Student user = new Student(userDataString, userDataString, userDataString, userDataString);
+        studentRepository.save(user);
+
+        Integer studentId = apiCreateApiStudentTest();
+        apiUpdateStudentTest(studentId);
+        apiDeleteStudentTest(studentId);
+        apiNotFoundStudentErrorTest(studentId);
+        apiEmptyDataStudentErrorTest(userDataString);
+    }
+
+    /**
+     * Тест создания студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @return ИД созданного студента
+     * @throws Exception ошибка
+     */
+    private Integer apiCreateApiStudentTest() throws Exception {
         String testFirstName1 = "TestFirstName";
         String testLastName1 = "TestLastName";
-        Student student1 = new Student(testFirstName1, testLastName1);
+        String username1 = "username1";
+        String password = "test";
+        Student student1 = new Student(testFirstName1, testLastName1, username1, password);
 
         // when
         String studentCreatedString = mockMvc.perform(MockMvcRequestBuilders.post(PATH_STUDENT)
@@ -82,16 +110,28 @@ class PreExApplicationTests {
         Integer studentId = studentEntity.getId();
         assertThat(studentEntity.getFirstname()).isEqualTo(testFirstName1);
         assertThat(studentEntity.getLastname()).isEqualTo(testLastName1);
+        return studentId;
+    }
 
+    /**
+     * Тест изменения студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
+    private void apiUpdateStudentTest(Integer studentId) throws Exception {
         // given
         String testFirstName2 = "NewTestFirstName";
         String testLastName2 = "NewTestLastName";
-        Student student2 = new Student(studentId, testFirstName2, testLastName2);
 
         // when
         String studentUpdatedString = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
                         .contentType(APPLICATION_JSON_VALUE)
-                        .content(objectMapper.writeValueAsString(student2)))
+                        .content(Json.createObjectBuilder()
+                                .add("id", studentId)
+                                .add("firstname", testFirstName2)
+                                .add("lastname", testLastName2)
+                                .build()
+                                .toString()))
                 .andExpect(status().isOk()).andReturn().getResponse()
                 .getContentAsString();
         // then
@@ -99,7 +139,14 @@ class PreExApplicationTests {
         Student studentEntity2 = studentRepository.findStudentByFirstname(testFirstName2);
         assertThat(studentEntity2.getFirstname()).isEqualTo(testFirstName2);
         assertThat(studentEntity2.getLastname()).isEqualTo(testLastName2);
+    }
 
+    /**
+     * Тест удаления студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
+    private void apiDeleteStudentTest(Integer studentId) throws Exception {
         // when
         String studentDeletedString = mockMvc.perform(MockMvcRequestBuilders.delete(PATH_STUDENT + "/{id}", studentId)
                         .contentType(APPLICATION_JSON_VALUE))
@@ -107,7 +154,14 @@ class PreExApplicationTests {
                 .getContentAsString();
         // then
         assertThat(studentDeletedString).isEqualTo("Student is deleted");
+    }
 
+    /**
+     * Тест ошибки поиска студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
+    private void apiNotFoundStudentErrorTest(Integer studentId) throws Exception {
         // when
         String studentNotFoundString = mockMvc.perform(MockMvcRequestBuilders.get(PATH_STUDENT + "/{id}", studentId)
                         .contentType(APPLICATION_JSON_VALUE))
@@ -115,18 +169,25 @@ class PreExApplicationTests {
                 .getContentAsString();
         // then
         assertThat(studentNotFoundString).isEqualTo("No Student with id = " + studentId);
+    }
 
+    /**
+     * Тест ошибки создания студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
+    private void apiEmptyDataStudentErrorTest(String userDataString) throws Exception {
         // when
         String studentEmptyDataString = mockMvc.perform(MockMvcRequestBuilders.post(PATH_STUDENT)
                         .contentType(APPLICATION_JSON_VALUE)
                         .content(Json.createObjectBuilder()
-                                .add("id", 1)
                                 .build()
                                 .toString()))
                 .andExpect(status().is5xxServerError()).andReturn().getResponse()
                 .getContentAsString();
         // then
-        assertThat(studentEmptyDataString).isEqualTo("Параметр Firstname должен быть заполнен\n" +
-                "Параметр Lastname должен быть заполнен");
+        assertThat(studentEmptyDataString).isEqualTo("Уважаемый " + userDataString +
+                "\nПараметр Firstname должен быть заполнен" +
+                "\nПараметр Lastname должен быть заполнен");
     }
 }

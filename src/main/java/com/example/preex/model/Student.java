@@ -29,7 +29,7 @@ import java.io.Serializable;
 public class Student implements Serializable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Integer id;
     @NonNull
     @Column(name = "firstname", nullable = false)
@@ -37,4 +37,10 @@ public class Student implements Serializable {
     @NonNull
     @Column(name = "lastname", nullable = false)
     private String lastname;
+    @NonNull
+    @Column(name = "username", nullable = false)
+    private String username;
+    @NonNull
+    @Column(name = "password", nullable = false)
+    private String password;
 }

@@ -15,9 +15,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
+import java.security.Principal;
 import java.util.List;
 
 /**
@@ -120,8 +122,9 @@ public class StudentController {
      * @return ошибка
      */
     @ExceptionHandler(StudentServiceImpl.StudentNotFoundException.class)
-    public ResponseEntity<String> notFoundException(StudentServiceImpl.StudentNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+    @ResponseStatus(code = HttpStatus.NOT_FOUND)
+    public String notFoundException(StudentServiceImpl.StudentNotFoundException exception) {
+        return exception.getMessage();
     }
 
     /**
@@ -131,11 +134,18 @@ public class StudentController {
      * @return ошибка
      */
     @ExceptionHandler(PropertyValueException.class)
-    public ResponseEntity<String> studentEmptyDataException(HttpServletRequest request) {
+    public ResponseEntity<String> studentEmptyDataException(HttpServletRequest request, Principal principal) {
         try {
+            Student principalStudent = studentService.getStudentByUsername(principal.getName());
             Student student = objectMapper.readValue(request.getInputStream(), Student.class);
             StringBuilder stringBuilder = new StringBuilder();
+            if (principalStudent != null) {
+                stringBuilder.append("Уважаемый " + principalStudent.getLastname());
+            }
             if (student.getFirstname() == null) {
+                if (!stringBuilder.isEmpty()) {
+                    stringBuilder.append("\n");
+                }
                 stringBuilder.append("Параметр Firstname должен быть заполнен");
             }
             if (student.getLastname() == null) {

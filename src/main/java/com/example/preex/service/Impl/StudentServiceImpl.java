@@ -58,6 +58,11 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    public Student getStudentByUsername(String username) {
+        return studentRepository.findStudentByUsername(username);
+    }
+
+    @Override
     public List<Student> getAllStudents() {
         return studentRepository.findAll();
     }

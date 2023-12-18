@@ -44,6 +44,14 @@ public interface StudentService {
     Student getStudentById(Integer id);
 
     /**
+     * Получение студента по лошину.
+     *
+     * @param username логин студента
+     * @return студент
+     */
+    Student getStudentByUsername(String username);
+
+    /**
      * Получение всех студентов.
      *
      * @return список всех студентов
