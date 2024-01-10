@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -19,6 +19,7 @@ import javax.json.Json;
 import static com.example.preex.controller.StudentController.PATH_STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -55,10 +56,22 @@ class PreExApplicationTests {
     @Autowired
     private StudentService studentService;
 
+    @Value("${spring.aop.proxy-target-class}")
+    private Boolean proxyTargetClass;
+
+    /**
+     * Пользователь - отправитель запросов.
+     */
+    private Student principal;
+
     @Test
     void contextLoads() {
         assertThat(studentService).isNotNull();
-        assertThat(AopUtils.isCglibProxy(studentService)).isTrue();
+        if (proxyTargetClass) {
+            assertThat(AopUtils.isCglibProxy(studentService)).isTrue();
+        } else {
+            assertThat(AopUtils.isJdkDynamicProxy(studentService)).isTrue();
+        }
         assertThat(studentRepository).isNotNull();
         assertThat(AopUtils.isJdkDynamicProxy(studentRepository)).isTrue();
     }
@@ -69,19 +82,18 @@ class PreExApplicationTests {
      * @throws Exception ошибка
      */
     @Test
-    @WithMockUser(username = "Test User")
     void controllerTest() throws Exception {
         // given
         // Создаем пользователя, который будет отправлять запросы
-        String userDataString = "Test User";
-        Student user = new Student(userDataString, userDataString, userDataString, userDataString);
-        studentRepository.save(user);
+        String testUsername = "testUser";
+        principal = createStudent(testUsername);
+        studentRepository.save(principal);
 
         Integer studentId = apiCreateApiStudentTest();
         apiUpdateStudentTest(studentId);
+        apiUpdateStudentTestUniqueError(studentId);
         apiDeleteStudentTest(studentId);
         apiNotFoundStudentErrorTest(studentId);
-        apiEmptyDataStudentErrorTest(userDataString);
     }
 
     /**
@@ -91,25 +103,23 @@ class PreExApplicationTests {
      * @throws Exception ошибка
      */
     private Integer apiCreateApiStudentTest() throws Exception {
-        String testFirstName1 = "TestFirstName";
-        String testLastName1 = "TestLastName";
-        String username1 = "username1";
-        String password = "test";
-        Student student1 = new Student(testFirstName1, testLastName1, username1, password);
+        Student student = createStudent("username");
+        String firstname = student.getFirstname();
+        String lastname = student.getLastname();
 
         // when
         String studentCreatedString = mockMvc.perform(MockMvcRequestBuilders.post(PATH_STUDENT)
+                        .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE)
-                        .content(objectMapper.writeValueAsString(student1)))
+                        .content(objectMapper.writeValueAsString(student)))
                 .andExpect(status().isCreated()).andReturn().getResponse()
                 .getContentAsString();
         // then
         assertThat(studentCreatedString).isEqualTo("Student is created");
-
-        Student studentEntity = studentRepository.findStudentByFirstname(testFirstName1);
+        Student studentEntity = studentRepository.findStudentByFirstname(firstname);
         Integer studentId = studentEntity.getId();
-        assertThat(studentEntity.getFirstname()).isEqualTo(testFirstName1);
-        assertThat(studentEntity.getLastname()).isEqualTo(testLastName1);
+        assertThat(studentEntity.getFirstname()).isEqualTo(firstname);
+        assertThat(studentEntity.getLastname()).isEqualTo(lastname);
         return studentId;
     }
 
@@ -125,6 +135,7 @@ class PreExApplicationTests {
 
         // when
         String studentUpdatedString = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
+                        .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE)
                         .content(Json.createObjectBuilder()
                                 .add("id", studentId)
@@ -149,6 +160,7 @@ class PreExApplicationTests {
     private void apiDeleteStudentTest(Integer studentId) throws Exception {
         // when
         String studentDeletedString = mockMvc.perform(MockMvcRequestBuilders.delete(PATH_STUDENT + "/{id}", studentId)
+                        .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE))
                 .andExpect(status().isAccepted()).andReturn().getResponse()
                 .getContentAsString();
@@ -164,6 +176,7 @@ class PreExApplicationTests {
     private void apiNotFoundStudentErrorTest(Integer studentId) throws Exception {
         // when
         String studentNotFoundString = mockMvc.perform(MockMvcRequestBuilders.get(PATH_STUDENT + "/{id}", studentId)
+                        .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE))
                 .andExpect(status().is4xxClientError()).andReturn().getResponse()
                 .getContentAsString();
@@ -172,22 +185,71 @@ class PreExApplicationTests {
     }
 
     /**
-     * Тест ошибки создания студента контроллера {@link com.example.preex.controller.StudentController}.
+     * Тест ошибки изменения студента контроллера {@link com.example.preex.controller.StudentController}.
      *
      * @throws Exception ошибка
      */
-    private void apiEmptyDataStudentErrorTest(String userDataString) throws Exception {
+    private void apiUpdateStudentTestUniqueError(Integer studentId) throws Exception {
         // when
-        String studentEmptyDataString = mockMvc.perform(MockMvcRequestBuilders.post(PATH_STUDENT)
+        String result = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT + "/{id}", studentId)
+                        .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE)
                         .content(Json.createObjectBuilder()
+                                .add("mail", principal.getMail())
                                 .build()
                                 .toString()))
-                .andExpect(status().is5xxServerError()).andReturn().getResponse()
+                .andExpect(status().is4xxClientError()).andReturn().getResponse()
+                .getContentAsString();
+
+        // then
+        assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
+                "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.");
+
+        // when
+        result = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
+                        .with(user(principal))
+                        .contentType(APPLICATION_JSON_VALUE)
+                        .content(Json.createObjectBuilder()
+                                .add("id", studentId)
+                                .add("mail", principal.getMail())
+                                .build()
+                                .toString()))
+                .andExpect(status().is4xxClientError()).andReturn().getResponse()
                 .getContentAsString();
         // then
-        assertThat(studentEmptyDataString).isEqualTo("Уважаемый " + userDataString +
-                "\nПараметр Firstname должен быть заполнен" +
-                "\nПараметр Lastname должен быть заполнен");
+        assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
+                "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.");
+
+        Student student = studentRepository.findById(studentId).get();
+
+        // when
+        result = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
+                        .with(user(student))
+                        .contentType(APPLICATION_JSON_VALUE)
+                        .content(Json.createObjectBuilder()
+                                .add("id", studentId)
+                                .add("mail", principal.getMail())
+                                .build()
+                                .toString()))
+                .andExpect(status().is4xxClientError()).andReturn().getResponse()
+                .getContentAsString();
+        // then
+        assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
+                "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.\n" +
+                "Ваш текущий e-mail = username_test@mail.ru");
+    }
+
+    /**
+     * Создание модели студента.
+     *
+     * @param username имя пользователя
+     * @return студент
+     */
+    private Student createStudent(String username) {
+        String testFirstName1 = username + "_TestFirstName";
+        String testLastName1 = username + "_TestLastName";
+        String testMail1 = username + "_test@mail.ru";
+        String password = "test";
+        return new Student(testFirstName1, testLastName1, testMail1, username, password);
     }
 }

@@ -1,8 +1,9 @@
 package com.example.preex.controller.request;
 
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.GenericFilterBean;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
-import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -17,14 +18,12 @@ import java.io.IOException;
  * @since 2023.12.17
  */
 @Component
-public class RequestFilter implements Filter {
+public class RequestFilter extends GenericFilterBean {
 
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
-
-        HttpServletRequest wrappedRequest = new RequestWrapper((HttpServletRequest) request);
-
-        chain.doFilter(wrappedRequest, response);
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        ContentCachingRequestWrapper wrapper = new ContentCachingRequestWrapper(request);
+        filterChain.doFilter(wrapper, servletResponse);
     }
 }

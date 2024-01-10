@@ -4,7 +4,8 @@ import com.example.preex.model.Student;
 import com.example.preex.service.Impl.StudentServiceImpl;
 import com.example.preex.service.StudentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.hibernate.PropertyValueException;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,8 +18,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 
@@ -83,6 +86,20 @@ public class StudentController {
     }
 
     /**
+     * Обновление студента по ИД.
+     *
+     * @param id             ИД студента
+     * @param updatedStudent модель студента
+     * @return сообщение об успешном выполнении операции
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<String> updateStudentById(@PathVariable Integer id, @RequestBody Student updatedStudent) {
+        updatedStudent.setId(id);
+        studentService.updateStudent(updatedStudent);
+        return ResponseEntity.ok("Student is updated");
+    }
+
+    /**
      * Удаление студента.
      *
      * @param id ИД студента
@@ -130,33 +147,58 @@ public class StudentController {
     /**
      * Обработка ошибки передачи студента.
      *
-     * @param request объект запроса
+     * @param exception      ошибка
+     * @param servletRequest объект запроса
+     * @param principal      текущий пользователь
      * @return ошибка
      */
-    @ExceptionHandler(PropertyValueException.class)
-    public ResponseEntity<String> studentEmptyDataException(HttpServletRequest request, Principal principal) {
+    @SuppressWarnings("ThrowableNotThrown")
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<String> handleConstraintViolationExceptionByPath(ConstraintViolationException exception, HttpServletRequest servletRequest, Principal principal) {
+        String message = NestedExceptionUtils.getRootCause(exception) != null ?
+                NestedExceptionUtils.getRootCause(exception).getMessage() : exception.getMessage();
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(message);
+
+        Integer studentId = Integer.parseInt(servletRequest.getPathInfo().replace(PATH_STUDENT + "/", ""));
+        Student student = studentService.getStudentById(studentId);
+        if (student.getUsername().equals(principal.getName())) {
+            stringBuilder.append("\n");
+            stringBuilder.append("Ваш текущий e-mail = ");
+            stringBuilder.append(student.getMail());
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(stringBuilder.toString());
+    }
+
+    /**
+     * Обработка ошибки передачи студента.
+     *
+     * @param exception ошибка
+     * @param request   объект запроса
+     * @param principal текущий пользователь
+     * @return ошибка
+     */
+    @SuppressWarnings("ThrowableNotThrown")
+//    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<String> handleConstraintViolationException(ConstraintViolationException exception, ContentCachingRequestWrapper request, Principal principal) {
         try {
-            Student principalStudent = studentService.getStudentByUsername(principal.getName());
-            Student student = objectMapper.readValue(request.getInputStream(), Student.class);
+            String message = NestedExceptionUtils.getRootCause(exception) != null ?
+                    NestedExceptionUtils.getRootCause(exception).getMessage() : exception.getMessage();
             StringBuilder stringBuilder = new StringBuilder();
-            if (principalStudent != null) {
-                stringBuilder.append("Уважаемый " + principalStudent.getLastname());
-            }
-            if (student.getFirstname() == null) {
-                if (!stringBuilder.isEmpty()) {
+            stringBuilder.append(message);
+
+            Integer studentId = objectMapper.readValue(request.getContentAsByteArray(), Student.class).getId();
+            if (studentId != null) {
+                Student student = studentService.getStudentById(studentId);
+                if (student.getUsername().equals(principal.getName())) {
                     stringBuilder.append("\n");
+                    stringBuilder.append("Ваш текущий e-mail = ");
+                    stringBuilder.append(student.getMail());
                 }
-                stringBuilder.append("Параметр Firstname должен быть заполнен");
             }
-            if (student.getLastname() == null) {
-                if (!stringBuilder.isEmpty()) {
-                    stringBuilder.append("\n");
-                }
-                stringBuilder.append("Параметр Lastname должен быть заполнен");
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(stringBuilder.toString());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Неправильно передан студент");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(stringBuilder.toString());
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Неправильно передан студент");
         }
     }
 }

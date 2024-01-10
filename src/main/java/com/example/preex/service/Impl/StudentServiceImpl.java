@@ -39,8 +39,15 @@ public class StudentServiceImpl implements StudentService {
     public void updateStudent(Student updatedStudent) {
         Student oldStudent = studentRepository.findById(updatedStudent.getId())
                 .orElseThrow(() -> new StudentNotFoundException("No Student with id = " + updatedStudent.getId()));
-        oldStudent.setFirstname(updatedStudent.getFirstname());
-        oldStudent.setLastname(updatedStudent.getLastname());
+        if (updatedStudent.getFirstname() != null) {
+            oldStudent.setFirstname(updatedStudent.getFirstname());
+        }
+        if (updatedStudent.getLastname() != null) {
+            oldStudent.setLastname(updatedStudent.getLastname());
+        }
+        if (updatedStudent.getMail() != null) {
+            oldStudent.setMail(updatedStudent.getMail());
+        }
         studentRepository.save(oldStudent);
     }
 
