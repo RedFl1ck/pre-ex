@@ -145,6 +145,18 @@ public class StudentController {
     }
 
     /**
+     * Обработка ошибки истекшего аккаунта.
+     *
+     * @param exception ошибка истекшего аккаунта
+     * @return ошибка
+     */
+    @ExceptionHandler(StudentServiceImpl.AccountIsExpiredException.class)
+    @ResponseStatus(code = HttpStatus.INTERNAL_SERVER_ERROR)
+    public String accountIsExpiredException(StudentServiceImpl.AccountIsExpiredException exception) {
+        return exception.getMessage();
+    }
+
+    /**
      * Обработка ошибки передачи студента.
      *
      * @param exception      ошибка
@@ -167,7 +179,7 @@ public class StudentController {
             stringBuilder.append("Ваш текущий e-mail = ");
             stringBuilder.append(student.getMail());
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(stringBuilder.toString());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(stringBuilder.toString());
     }
 
     /**
@@ -196,7 +208,7 @@ public class StudentController {
                     stringBuilder.append(student.getMail());
                 }
             }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(stringBuilder.toString());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(stringBuilder.toString());
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Неправильно передан студент");
         }

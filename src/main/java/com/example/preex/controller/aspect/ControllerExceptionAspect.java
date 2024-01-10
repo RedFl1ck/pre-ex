@@ -53,31 +53,28 @@ public class ControllerExceptionAspect {
      * @param joinPoint точка подключения
      */
     @Around("execution(* com.example.preex.controller.StudentController.*(com.example.preex.model.Student))")
-    public ResponseEntity<String> handleException(ProceedingJoinPoint joinPoint) {
+    public ResponseEntity<String> handleException(ProceedingJoinPoint joinPoint) throws Throwable {
         try {
             return (ResponseEntity<String>) joinPoint.proceed();
-        } catch (Throwable exception) {
+        } catch (DataIntegrityViolationException exception) {
             LOG.info("Handling exception: " + exception);
-            if (exception instanceof DataIntegrityViolationException) {
-                String message = NestedExceptionUtils.getRootCause(exception) != null ? NestedExceptionUtils.getRootCause(exception)
-                        .getMessage() : exception.getMessage();
-                StringBuilder stringBuilder = new StringBuilder();
-                stringBuilder.append(message);
 
-                Integer studentId = ((Student) Arrays.asList(joinPoint.getArgs()).get(0)).getId();
-                if (studentId != null) {
-                    Student student = studentService.getStudentById(studentId);
-                    Authentication principal = SecurityContextHolder.getContext().getAuthentication();
-                    if (student.getUsername().equals(principal.getName())) {
-                        stringBuilder.append("\n");
-                        stringBuilder.append("Ваш текущий e-mail = ");
-                        stringBuilder.append(student.getMail());
-                    }
+            String message = NestedExceptionUtils.getRootCause(exception) != null ? NestedExceptionUtils.getRootCause(exception)
+                    .getMessage() : exception.getMessage();
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append(message);
+
+            Integer studentId = ((Student) Arrays.asList(joinPoint.getArgs()).get(0)).getId();
+            if (studentId != null) {
+                Student student = studentService.getStudentById(studentId);
+                Authentication principal = SecurityContextHolder.getContext().getAuthentication();
+                if (student.getUsername().equals(principal.getName())) {
+                    stringBuilder.append("\n");
+                    stringBuilder.append("Ваш текущий e-mail = ");
+                    stringBuilder.append(student.getMail());
                 }
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(stringBuilder.toString());
-            } else {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Неправильно передан студент");
             }
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(stringBuilder.toString());
         }
     }
 }

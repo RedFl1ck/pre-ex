@@ -49,6 +49,8 @@ public class Student implements UserDetails {
     @NonNull
     @Column(name = "password", nullable = false)
     private String password;
+    @Column(name = "account_non_expired")
+    private Boolean accountNonExpired = true;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -57,7 +59,7 @@ public class Student implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return true;
+        return accountNonExpired;
     }
 
     @Override

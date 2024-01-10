@@ -38,7 +38,13 @@ public class StudentServiceImpl implements StudentService {
     @Override
     public void updateStudent(Student updatedStudent) {
         Student oldStudent = studentRepository.findById(updatedStudent.getId())
-                .orElseThrow(() -> new StudentNotFoundException("No Student with id = " + updatedStudent.getId()));
+                .orElseThrow(() -> new StudentNotFoundException(updatedStudent.getId()));
+        if (updatedStudent.getPassword() != null) {
+            if (!oldStudent.isAccountNonExpired()) {
+                throw new AccountIsExpiredException();
+            }
+            oldStudent.setPassword(updatedStudent.getPassword());
+        }
         if (updatedStudent.getFirstname() != null) {
             oldStudent.setFirstname(updatedStudent.getFirstname());
         }
@@ -54,14 +60,14 @@ public class StudentServiceImpl implements StudentService {
     @Override
     public void deleteStudentById(Integer id) {
         Student oldStudent = studentRepository.findById(id)
-                .orElseThrow(() -> new StudentNotFoundException("No Student with id = " + id));
+                .orElseThrow(() -> new StudentNotFoundException(id));
         studentRepository.delete(oldStudent);
     }
 
     @Override
     public Student getStudentById(Integer id) {
         return studentRepository.findById(id)
-                .orElseThrow(() -> new StudentNotFoundException("No Student with id = " + id));
+                .orElseThrow(() -> new StudentNotFoundException(id));
     }
 
     @Override
@@ -78,8 +84,17 @@ public class StudentServiceImpl implements StudentService {
      * Студент не найден.
      */
     public static class StudentNotFoundException extends RuntimeException {
-        public StudentNotFoundException(String message) {
-            super(message);
+        public StudentNotFoundException(Integer id) {
+            super("No Student with id = " + id);
+        }
+    }
+
+    /**
+     * Истек срок действия аккаунта.
+     */
+    public static class AccountIsExpiredException extends RuntimeException {
+        public AccountIsExpiredException() {
+            super("Cannot update password because account is expired");
         }
     }
 

@@ -92,6 +92,7 @@ class PreExApplicationTests {
         Integer studentId = apiCreateApiStudentTest();
         apiUpdateStudentTest(studentId);
         apiUpdateStudentTestUniqueError(studentId);
+        apiAccountExpiredUpdatePasswordStudentErrorTest(studentId);
         apiDeleteStudentTest(studentId);
         apiNotFoundStudentErrorTest(studentId);
     }
@@ -237,6 +238,30 @@ class PreExApplicationTests {
         assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
                 "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.\n" +
                 "Ваш текущий e-mail = username_test@mail.ru");
+    }
+
+    /**
+     * Тест ошибки обновления пароля для истекшего аккаунта студента контроллера {@link com.example.preex.controller.StudentController}.
+     *
+     * @throws Exception ошибка
+     */
+    private void apiAccountExpiredUpdatePasswordStudentErrorTest(Integer studentId) throws Exception {
+        Student student = studentRepository.findById(studentId).get();
+        student.setAccountNonExpired(false);
+        studentRepository.save(student);
+
+        String studentUpdatedString = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
+                        .with(user(principal))
+                        .contentType(APPLICATION_JSON_VALUE)
+                        .content(Json.createObjectBuilder()
+                                .add("id", studentId)
+                                .add("password", "test")
+                                .build()
+                                .toString()))
+                .andExpect(status().is5xxServerError()).andReturn().getResponse()
+                .getContentAsString();
+        // then
+        assertThat(studentUpdatedString).isEqualTo("Cannot update password because account is expired");
     }
 
     /**
