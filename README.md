@@ -11,3 +11,4 @@
 4. Проверить дефолтное и переопределенное поведение проксирования с помощью CGLIB/JDK
    Можем использоватьspring.aop.proxy-target-class, чтобы принудить spring использовать CGLIB или JDK;
    Тест представлен в PreExApplicationTests#contextLoads.
+   Прокси для аспектов получилось менять с CGLIB на JDK, а вот для @Repository все равно используется JDK, потому что в DefaultAopProxyFactory#createAopProxy устанавливается ProxyTargetClass в false для репозиториев.
