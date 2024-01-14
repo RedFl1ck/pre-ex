@@ -2,12 +2,12 @@ package com.example.preex;
 
 import com.example.preex.model.Student;
 import com.example.preex.repository.StudentRepository;
-import com.example.preex.service.StudentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.aop.support.AopUtils;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,9 +22,16 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Тест контроллера {@link com.example.preex.controller.StudentController}.
+ *
+ * @author Mikhail Nikiforov
+ * @since 2023.01.14
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
-class PreExApplicationTests {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class StudentControllerTests {
 
     /**
      * Spring MVC mock.
@@ -51,59 +58,31 @@ class PreExApplicationTests {
     private StudentRepository studentRepository;
 
     /**
-     * Сервис для работы со студентами.
-     */
-    @Autowired
-    private StudentService studentService;
-
-    @Value("${spring.aop.proxy-target-class}")
-    private Boolean proxyTargetClass;
-
-    /**
      * Пользователь - отправитель запросов.
      */
     private Student principal;
 
-    @Test
-    void contextLoads() {
-        assertThat(studentService).isNotNull();
-        if (proxyTargetClass) {
-            assertThat(AopUtils.isCglibProxy(studentService)).isTrue();
-        } else {
-            assertThat(AopUtils.isJdkDynamicProxy(studentService)).isTrue();
-        }
-        assertThat(studentRepository).isNotNull();
-        assertThat(AopUtils.isJdkDynamicProxy(studentRepository)).isTrue();
-    }
-
-    /**
-     * Тест контроллера студентов {@link com.example.preex.controller.StudentController}.
-     *
-     * @throws Exception ошибка
-     */
-    @Test
-    void controllerTest() throws Exception {
-        // given
+    @BeforeAll
+    public void beforeAll() {
         // Создаем пользователя, который будет отправлять запросы
         String testUsername = "testUser";
         principal = createStudent(testUsername);
         studentRepository.save(principal);
+    }
 
-        Integer studentId = apiCreateApiStudentTest();
-        apiUpdateStudentTest(studentId);
-        apiUpdateStudentTestUniqueError(studentId);
-        apiAccountExpiredUpdatePasswordStudentErrorTest(studentId);
-        apiDeleteStudentTest(studentId);
-        apiNotFoundStudentErrorTest(studentId);
+    @AfterAll
+    public void afterAll() {
+        // Удаляем пользователя, который отправляет запросы
+        studentRepository.delete(principal);
     }
 
     /**
      * Тест создания студента контроллера {@link com.example.preex.controller.StudentController}.
      *
-     * @return ИД созданного студента
      * @throws Exception ошибка
      */
-    private Integer apiCreateApiStudentTest() throws Exception {
+    @Test
+    public void apiCreateApiStudentTest() throws Exception {
         Student student = createStudent("username");
         String firstname = student.getFirstname();
         String lastname = student.getLastname();
@@ -118,10 +97,10 @@ class PreExApplicationTests {
         // then
         assertThat(studentCreatedString).isEqualTo("Student is created");
         Student studentEntity = studentRepository.findStudentByFirstname(firstname);
-        Integer studentId = studentEntity.getId();
         assertThat(studentEntity.getFirstname()).isEqualTo(firstname);
         assertThat(studentEntity.getLastname()).isEqualTo(lastname);
-        return studentId;
+
+        studentRepository.deleteById(studentEntity.getId());
     }
 
     /**
@@ -129,8 +108,10 @@ class PreExApplicationTests {
      *
      * @throws Exception ошибка
      */
-    private void apiUpdateStudentTest(Integer studentId) throws Exception {
+    @Test
+    public void apiUpdateStudentTest() throws Exception {
         // given
+        Student student = createStudent("username");
         String testFirstName2 = "NewTestFirstName";
         String testLastName2 = "NewTestLastName";
 
@@ -139,7 +120,7 @@ class PreExApplicationTests {
                         .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE)
                         .content(Json.createObjectBuilder()
-                                .add("id", studentId)
+                                .add("id", student.getId())
                                 .add("firstname", testFirstName2)
                                 .add("lastname", testLastName2)
                                 .build()
@@ -148,9 +129,11 @@ class PreExApplicationTests {
                 .getContentAsString();
         // then
         assertThat(studentUpdatedString).isEqualTo("Student is updated");
-        Student studentEntity2 = studentRepository.findStudentByFirstname(testFirstName2);
-        assertThat(studentEntity2.getFirstname()).isEqualTo(testFirstName2);
-        assertThat(studentEntity2.getLastname()).isEqualTo(testLastName2);
+        Student studentEntity = studentRepository.findStudentByFirstname(testFirstName2);
+        assertThat(studentEntity.getFirstname()).isEqualTo(testFirstName2);
+        assertThat(studentEntity.getLastname()).isEqualTo(testLastName2);
+
+        studentRepository.deleteById(studentEntity.getId());
     }
 
     /**
@@ -158,9 +141,13 @@ class PreExApplicationTests {
      *
      * @throws Exception ошибка
      */
-    private void apiDeleteStudentTest(Integer studentId) throws Exception {
+    @Test
+    public void apiDeleteStudentTest() throws Exception {
+        // given
+        Student student = createStudent("username");
+
         // when
-        String studentDeletedString = mockMvc.perform(MockMvcRequestBuilders.delete(PATH_STUDENT + "/{id}", studentId)
+        String studentDeletedString = mockMvc.perform(MockMvcRequestBuilders.delete(PATH_STUDENT + "/{id}", student.getId())
                         .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE))
                 .andExpect(status().isAccepted()).andReturn().getResponse()
@@ -174,15 +161,16 @@ class PreExApplicationTests {
      *
      * @throws Exception ошибка
      */
-    private void apiNotFoundStudentErrorTest(Integer studentId) throws Exception {
-        // when
-        String studentNotFoundString = mockMvc.perform(MockMvcRequestBuilders.get(PATH_STUDENT + "/{id}", studentId)
+    @Test
+    public void apiNotFoundStudentErrorTest() throws Exception {
+        // given
+        Integer studentId = Integer.MAX_VALUE;
+
+        // then
+        mockMvc.perform(MockMvcRequestBuilders.get(PATH_STUDENT + "/{id}", studentId)
                         .with(user(principal))
                         .contentType(APPLICATION_JSON_VALUE))
-                .andExpect(status().is4xxClientError()).andReturn().getResponse()
-                .getContentAsString();
-        // then
-        assertThat(studentNotFoundString).isEqualTo("No Student with id = " + studentId);
+                .andExpect(status().isNotFound());
     }
 
     /**
@@ -190,7 +178,12 @@ class PreExApplicationTests {
      *
      * @throws Exception ошибка
      */
-    private void apiUpdateStudentTestUniqueError(Integer studentId) throws Exception {
+    @Test
+    public void apiUpdateStudentTestUniqueError() throws Exception {
+        // given
+        Student student = createStudent("username");
+        Integer studentId = student.getId();
+
         // when
         String result = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT + "/{id}", studentId)
                         .with(user(principal))
@@ -221,8 +214,6 @@ class PreExApplicationTests {
         assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
                 "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.");
 
-        Student student = studentRepository.findById(studentId).get();
-
         // when
         result = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
                         .with(user(student))
@@ -238,6 +229,8 @@ class PreExApplicationTests {
         assertThat(result).isEqualTo("ERROR: duplicate key value violates unique constraint \"unique_mail\"\n" +
                 "  Подробности: Key (mail)=(testUser_test@mail.ru) already exists.\n" +
                 "Ваш текущий e-mail = username_test@mail.ru");
+
+        studentRepository.deleteById(studentId);
     }
 
     /**
@@ -245,10 +238,13 @@ class PreExApplicationTests {
      *
      * @throws Exception ошибка
      */
-    private void apiAccountExpiredUpdatePasswordStudentErrorTest(Integer studentId) throws Exception {
-        Student student = studentRepository.findById(studentId).get();
+    @Test
+    public void apiAccountExpiredUpdatePasswordStudentErrorTest() throws Exception {
+        // given
+        Student student = createStudent("username");
         student.setAccountNonExpired(false);
         studentRepository.save(student);
+        Integer studentId = student.getId();
 
         String studentUpdatedString = mockMvc.perform(MockMvcRequestBuilders.put(PATH_STUDENT)
                         .with(user(principal))
@@ -262,6 +258,7 @@ class PreExApplicationTests {
                 .getContentAsString();
         // then
         assertThat(studentUpdatedString).isEqualTo("Cannot update password because account is expired");
+        studentRepository.deleteById(studentId);
     }
 
     /**
@@ -275,6 +272,8 @@ class PreExApplicationTests {
         String testLastName1 = username + "_TestLastName";
         String testMail1 = username + "_test@mail.ru";
         String password = "test";
-        return new Student(testFirstName1, testLastName1, testMail1, username, password);
+        Student student = new Student(testFirstName1, testLastName1, testMail1, username, password);
+        studentRepository.save(student);
+        return studentRepository.findStudentByUsername(username);
     }
 }

@@ -3,7 +3,9 @@ package com.example.preex.service.Impl;
 import com.example.preex.model.Student;
 import com.example.preex.repository.StudentRepository;
 import com.example.preex.service.StudentService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.util.List;
 
@@ -83,6 +85,7 @@ public class StudentServiceImpl implements StudentService {
     /**
      * Студент не найден.
      */
+    @ResponseStatus(code = HttpStatus.NOT_FOUND)
     public static class StudentNotFoundException extends RuntimeException {
         public StudentNotFoundException(Integer id) {
             super("No Student with id = " + id);

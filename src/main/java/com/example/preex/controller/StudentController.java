@@ -133,18 +133,6 @@ public class StudentController {
     }
 
     /**
-     * Обработка ошибки поиска студента.
-     *
-     * @param exception ошибка поиска студента
-     * @return ошибка
-     */
-    @ExceptionHandler(StudentServiceImpl.StudentNotFoundException.class)
-    @ResponseStatus(code = HttpStatus.NOT_FOUND)
-    public String notFoundException(StudentServiceImpl.StudentNotFoundException exception) {
-        return exception.getMessage();
-    }
-
-    /**
      * Обработка ошибки истекшего аккаунта.
      *
      * @param exception ошибка истекшего аккаунта
