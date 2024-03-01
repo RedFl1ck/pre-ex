@@ -7,7 +7,6 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,12 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {"spring.aop.proxy-target-class=true"})
 @AutoConfigureMockMvc
 class LoadContextCglibProxyTests {
-
-    /**
-     * Менеджер транзакций.
-     */
-    @Autowired
-    protected PlatformTransactionManager transactionManager;
 
     /**
      * Репозиторий студентов.
